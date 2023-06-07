@@ -268,7 +268,7 @@ showInfo() {
     echo -e "  ${BLUE}端口：${PLAIN}${RED}$MTG_PORT${PLAIN}"
     echo -e "  ${BLUE}密钥：${PLAIN}${RED}$SECRET${PLAIN}"
     echo ""
-    echo -e "https://t.me/proxy?server=${PLAIN}${RED}$IP${PLAIN}&port=${PLAIN}${RED}$MTG_PORT${PLAIN}&secret=${PLAIN}${RED}$SECRET${PLAIN}"
+    echo -e "一键连接代理（将连接复制到telegram打开）  https://t.me/proxy?server=${PLAIN}${RED}$IP${PLAIN}&port=${PLAIN}${RED}$MTG_PORT${PLAIN}&secret=${PLAIN}${RED}$SECRET${PLAIN}"
     echo "更多telegram使用技巧, 好用的服务器推荐请关注我的博客 https://www.idchub.net  也可以订阅Telegram频道 @idchubchannel"
 }
 
