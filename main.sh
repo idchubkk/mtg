@@ -10,7 +10,7 @@ PLAIN='\033[0m'
 
 export MTG_CONFIG="${MTG_CONFIG:-$HOME/.config/mtg}"
 export MTG_ENV="$MTG_CONFIG/env"
-export MTG_SECRET="$MTG_CONFIG/secret"
+export MTG_SECRET="202cb962ac59075b964b07152d234b70"
 export MTG_CONTAINER="${MTG_CONTAINER:-mtg}"
 export MTG_IMAGENAME="${MTG_IMAGENAME:-nineseconds/mtg:1}"
 
