@@ -1,417 +1,189 @@
 #!/bin/bash
-# MTProto一键安装脚本
-# Author: palm<https://www.idchub.net>
+###
+ # @作者: idchubkk
+ # @日期: 2022-07-01
+ # @说明: 一键安装 / 管理 MTProto 代理
+ # @Telegram: https://t.me/idchubkk
+###
 
-RED="\033[31m"      # Error message
-GREEN="\033[32m"    # Success message
-YELLOW="\033[33m"   # Warning message
-BLUE="\033[36m"     # Info message
-PLAIN='\033[0m'
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
 
-export MTG_CONFIG="${MTG_CONFIG:-$HOME/.config/mtg}"
-export MTG_ENV="$MTG_CONFIG/env"
-export MTG_SECRET="202cb962ac59075b964b07152d234b70"
-export MTG_CONTAINER="${MTG_CONTAINER:-mtg}"
-export MTG_IMAGENAME="${MTG_IMAGENAME:-nineseconds/mtg:1}"
+# 颜色定义
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+plain='\033[0m'
 
-DOCKER_CMD="$(command -v docker)"
-OSNAME=`hostnamectl | grep -i system | cut -d: -f2`
+# 必须使用 root
+[[ $EUID -ne 0 ]] && echo -e "[${red}错误${plain}] 请使用 ROOT 用户运行此脚本！" && exit 1
 
-IP=`curl -sL -4 ip.sb`
+download_file(){
+	echo "正在检测系统架构..."
 
-colorEcho() {
-    echo -e "${1}${@:2}${PLAIN}"
-}
-
-checkSystem() {
-    result=$(id | awk '{print $1}')
-    if [[ $result != "uid=0(root)" ]]; then
-        colorEcho $RED " 请以root身份执行该脚本"
-        exit 1
-    fi
-
-    res=`which yum`
-    if [[ "$?" != "0" ]]; then
-        res=`which apt`
-        if [ "$?" != "0" ]; then
-            colorEcho $RED " 不受支持的Linux系统"
-            exit 1
-        fi
-        res=`hostnamectl | grep -i ubuntu`
-        if [[ "${res}" != "" ]]; then
-            OS="ubuntu"
-        else
-            OS="debian"
-        fi
-        PMT="apt"
-        CMD_INSTALL="apt install -y "
-        CMD_REMOVE="apt remove -y "
+	bit=`uname -m`
+	if [[ ${bit} = "x86_64" ]]; then
+		bit="amd64"
+    elif [[ ${bit} = "aarch64" ]]; then
+        bit="arm64"
     else
-        OS="centos"
-        PMT="yum"
-        CMD_INSTALL="yum install -y "
-        CMD_REMOVE="yum remove -y "
+	    bit="386"
     fi
-    res=`which systemctl`
-    if [[ "$?" != "0" ]]; then
-        colorEcho $RED " 系统版本过低，请升级到最新版本"
+
+    last_version=$(curl -Ls "https://api.github.com/repos/9seconds/mtg/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [[ ! -n "$last_version" ]]; then
+        echo -e "${red}获取最新版本失败，可能是 Github API 访问频率限制，请稍后再试。${plain}"
         exit 1
     fi
-}
-
-status() {
-    if [[ "$DOCKER_CMD" = "" ]]; then
-        echo 0
-        return
-    elif [[ ! -f $MTG_ENV ]]; then
-        echo 1
-        return
-    fi
-    port=`grep MTG_PORT $MTG_ENV|cut -d= -f2`
-    if [[ -z "$port" ]]; then
-        echo 2
-        return
-    fi
-    res=`ss -ntlp| grep ${port} | grep docker`
-    if [[ -z "$res" ]]; then
-        echo 3
-    else
-        echo 4
-    fi
-}
-
-statusText() {
-    res=`status`
-    case $res in
-        3)
-            echo -e ${GREEN}已安装${PLAIN} ${RED}未运行${PLAIN}
-            ;;
-        4)
-            echo -e ${GREEN}已安装${PLAIN} ${GREEN}正在运行${PLAIN}
-            ;;
-        *)
-            echo -e ${RED}未安装${PLAIN}
-            ;;
-    esac
-}
-
-getData() {
-    read -p " 请输入MTProto端口[100-65535的一个数字]：" PORT
-    [[ -z "${PORT}" ]] && {
-        echo -e " ${RED}请输入MTProto端口！${PLAIN}"
-        exit 1
-    }
-    if [[ "${PORT:0:1}" = "0" ]]; then
-        echo -e " ${RED}端口不能以0开头${PLAIN}"
+    echo -e "检测到 mtg 最新版本: ${last_version}，开始安装..."
+    version=$(echo ${last_version} | sed 's/v//g')
+    wget -N --no-check-certificate -O mtg-${version}-linux-${bit}.tar.gz https://github.com/9seconds/mtg/releases/download/${last_version}/mtg-${version}-linux-${bit}.tar.gz
+    if [[ ! -f "mtg-${version}-linux-${bit}.tar.gz" ]]; then
+        echo -e "${red}下载 mtg-${version}-linux-${bit}.tar.gz 失败，请重试。${plain}"
         exit 1
     fi
-    MTG_PORT=$PORT
-    mkdir -p $MTG_CONFIG
-    echo "MTG_IMAGENAME=$MTG_IMAGENAME" > "$MTG_ENV"
-    echo "MTG_PORT=$MTG_PORT" >> "$MTG_ENV"
-    echo "MTG_CONTAINER=$MTG_CONTAINER" >> "$MTG_ENV"
+    tar -xzf mtg-${version}-linux-${bit}.tar.gz
+    mv mtg-${version}-linux-${bit}/mtg /usr/bin/mtg
+    rm -f mtg-${version}-linux-${bit}.tar.gz
+    rm -rf mtg-${version}-linux-${bit}
+    chmod +x /usr/bin/mtg
+    echo -e "mtg 安装成功，开始配置..."
 }
 
-installDocker() {
-    if [[ "$DOCKER_CMD" != "" ]]; then
-        systemctl enable docker
-        systemctl start docker
-        selinux
-        return
-    fi
-
-    #$CMD_REMOVE docker docker-engine docker.io containerd runc
-    $PMT clean all
-    $CMD_INSTALL wget curl
-    if [[ $PMT = "apt" ]]; then
-        apt clean all
-		apt-get -y install \
-			apt-transport-https \
-			ca-certificates \
-			curl \
-			gnupg-agent \
-			software-properties-common
-        curl -fsSL https://download.docker.com/linux/$OS/gpg | apt-key add -
-        add-apt-repository \
-            "deb [arch=amd64] https://download.docker.com/linux/$OS \
-            $(lsb_release -cs) \
-            stable"
-        apt update
-    else
-        wget -O /etc/yum.repos.d/docker-ce.repo https://download.docker.com/linux/centos/docker-ce.repo
-        yum clean all
-    fi
-    $CMD_INSTALL docker-ce docker-ce-cli containerd.io
-
-    DOCKER_CMD="$(command -v docker)"
-    if [[ "$DOCKER_CMD" = "" ]]; then
-        echo -e " ${RED}$OSNAME docker安装失败，请到https://www.idchub.net反馈${PLAIN}"
-        exit 1
-    fi
-    systemctl enable docker
-    systemctl start docker
-
-    selinux
-}
-
-pullImage() {
-    if [[ "$DOCKER_CMD" = "" ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        exit 1
-    fi
-
-    set -a
-    source "$MTG_ENV"
-    set +a
-
-    $DOCKER_CMD pull "$MTG_IMAGENAME" > /dev/null
-}
-
-selinux() {
-    if [[ -s /etc/selinux/config ]] && grep 'SELINUX=enforcing' /etc/selinux/config; then
-        sed -i 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
-        setenforce 0
-    fi
-}
-
-firewall() {
-    port=$1
-    systemctl status firewalld > /dev/null 2>&1
-    if [[ $? -eq 0 ]];then
-        firewall-cmd --permanent --add-port=$port/tcp
-        firewall-cmd --reload
-    else
-        nl=`iptables -nL | nl | grep FORWARD | awk '{print $1}'`
-        if [ "$nl" != "3" ]; then
-            iptables -I INPUT -p tcp --dport=$port -j ACCEPT
-        else
-            res=`ufw status | grep -i inactive`
-            if [ "$res" = "" ]; then
-                ufw allow $port/tcp
-            fi
-        fi
-    fi
-}
-
-start() {
-    res=`status`
-    if [[ $res -lt 3 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    set -a
-    source "$MTG_ENV"
-    set +a
-
-    if [[ ! -f "$MTG_SECRET" ]]; then
-        $DOCKER_CMD run \
-                --rm \
-                "$MTG_IMAGENAME" \
-            generate-secret tls -c "$(openssl rand -hex 16).com" \
-        > "$MTG_SECRET"
-    fi
-
-    $DOCKER_CMD ps --filter "Name=$MTG_CONTAINER" -aq | xargs -r $DOCKER_CMD rm -fv > /dev/null
-    $DOCKER_CMD run \
-            -d \
-            --restart=unless-stopped \
-            --name "$MTG_CONTAINER" \
-            --ulimit nofile=51200:51200 \
-            -p "$MTG_PORT:3128" \
-        "$MTG_IMAGENAME" run "$(cat "$MTG_SECRET")" > /dev/null
-
-    sleep 3
-    res=`ss -ntlp| grep ${MTG_PORT} | grep docker`
-    if [[ "$res" = "" ]]; then
-        docker logs $MTG_CONTAINER | tail
-        echo -e " ${RED}$OSNAME 启动docker镜像失败，请到 https://www.idchub.net 反馈${PLAIN}"
-        exit 1
-    else
-        colorEcho $BLUE " MTProto启动成功！"
-    fi
-}
-
-stop() {
-    res=`status`
-    if [[ $res -lt 3 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    set -a
-    source "$MTG_ENV"
-    set +a
-
-    $DOCKER_CMD stop $MTG_CONTAINER >> /dev/null
-    colorEcho $BLUE " MTProto停止成功！"
-}
-
-showInfo() {
-    res=`status`
-    if [[ $res -lt 3 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    SECRET=$(cat "$MTG_SECRET")
-    set -a
-    source "$MTG_ENV"
-    set +a
-
-    echo
-    echo -e " ${RED}MTProto代理信息：${PLAIN}"
-    echo
-    echo -n -e "  ${BLUE}当前状态：${PLAIN}"
-    statusText
-    echo -e "  ${BLUE}IP：${PLAIN}${RED}$IP${PLAIN}"
-    echo -e "  ${BLUE}端口：${PLAIN}${RED}$MTG_PORT${PLAIN}"
-    echo -e "  ${BLUE}密钥：${PLAIN}${RED}$SECRET${PLAIN}"
+configure_mtg(){
+    echo -e "正在配置 mtg..."
+    wget -N --no-check-certificate -O /etc/mtg.toml https://raw.githubusercontent.com/missuo/MTProxy/main/mtg.toml
+    
     echo ""
-    echo -e "一键连接代理（将连接复制到telegram打开）  https://t.me/proxy?server=${PLAIN}${RED}$IP${PLAIN}&port=${PLAIN}${RED}$MTG_PORT${PLAIN}&secret=${PLAIN}${RED}$SECRET${PLAIN}"
-    echo "更多telegram使用技巧, 好用的服务器推荐请关注我的博客 https://www.idchub.net  也可以订阅Telegram频道 @idchubchannel"
+    read -p "请输入伪装域名（默认 itunes.apple.com）: " domain
+	[ -z "${domain}" ] && domain="itunes.apple.com"
+
+	echo ""
+    read -p "请输入监听端口（默认 8443）: " port
+	[ -z "${port}" ] && port="8443"
+
+    secret=$(mtg generate-secret --hex $domain)
+    
+    echo "正在写入配置..."
+
+    sed -i "s/secret.*/secret = \"${secret}\"/g" /etc/mtg.toml
+    sed -i "s/bind-to.*/bind-to = \"0.0.0.0:${port}\"/g" /etc/mtg.toml
+
+    echo "配置完成，开始设置 systemctl..."
 }
 
-install() {
-    getData
-    installDocker
-    pullImage
-    start
-    firewall $MTG_PORT
-    showInfo
-}
-
-update() {
-    res=`status`
-    if [[ $res -lt 2 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    pullImage
-    stop
-    start
-    showInfo
-}
-
-uninstall() {
+configure_systemctl(){
+    echo -e "正在配置 systemctl 服务..."
+    wget -N --no-check-certificate -O /etc/systemd/system/mtg.service https://raw.githubusercontent.com/missuo/MTProxy/main/mtg.service
+    systemctl enable mtg
+    systemctl start mtg
+    echo "关闭防火墙..."
+    systemctl disable firewalld
+    systemctl stop firewalld
+    ufw disable
+    echo "MTProxy 启动成功！"
     echo ""
-    read -p " 确定卸载MTProto？[y/n]：" answer
-    if [[ "$answer" = "y" ]] || [[ "$answer" = "Y" ]]; then
-        stop
-        rm -rf $MTG_CONFIG
-        docker system prune -af
-        systemctl stop docker
-        systemctl disable docker
-        $CMD_REMOVE docker-ce docker-ce-cli containerd.io
-        colorEcho $GREEN " 卸载成功"
-    fi
+    public_ip=$(curl -s ipv4.ip.sb)
+    subscription_config="tg://proxy?server=${public_ip}&port=${port}&secret=${secret}"
+    subscription_link="https://t.me/proxy?server=${public_ip}&port=${port}&secret=${secret}"
+    echo -e "=== 你的 MTProto 代理信息 ==="
+    echo -e "IP: ${public_ip}"
+    echo -e "端口: ${port}"
+    echo -e "密钥: ${secret}"
+    echo -e "\nTelegram 点击链接：\n${subscription_config}\n${subscription_link}"
 }
 
-restart() {
-    res=`status`
-    if [[ $res -lt 3 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    stop
-    start
+change_port(){
+    read -p "请输入新的端口（默认 8443）: " port
+	[ -z "${port}" ] && port="8443"
+    sed -i "s/bind-to.*/bind-to = \"0.0.0.0:${port}\"/g" /etc/mtg.toml
+    echo "正在重启 MTProxy..."
+    systemctl restart mtg
+    echo "端口修改成功并已重启！"
 }
 
-reconfig()
-{
-    res=`status`
-    if [[ $res -lt 2 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    getData
-    stop
-    start
-    firewall $MTG_PORT
-    showInfo
+change_secret(){
+    echo -e "注意：修改 Secret 可能导致客户端无法连接！"
+    read -p "请输入新的 Secret（留空则使用默认域名生成）: " secret
+	[ -z "${secret}" ] && secret="$(mtg generate-secret --hex itunes.apple.com)"
+    sed -i "s/secret.*/secret = \"${secret}\"/g" /etc/mtg.toml
+    echo "Secret 修改成功！"
+    echo "正在重启 MTProxy..."
+    systemctl restart mtg
+    echo "重启完成！"
 }
 
-showLog() {
-    res=`status`
-    if [[ $res -lt 3 ]]; then
-        echo -e " ${RED}MTProto未安装，请先安装！${PLAIN}"
-        return
-    fi
-
-    set -a
-    source "$MTG_ENV"
-    set +a
-
-    $DOCKER_CMD logs $MTG_CONTAINER | tail
+update_mtg(){
+    echo -e "正在更新 mtg..."
+    download_file
+    echo "更新完成，正在重启 MTProxy..."
+    systemctl restart mtg
+    echo "重启完成！"
 }
 
-menu() {
+start_menu() {
     clear
-    echo "#############################################################"
-    echo -e "#                    ${RED}MTProto一键安装脚本${PLAIN}                    #"
-    echo "#############################################################"
-    echo ""
+    echo -e " MTProto 一键管理脚本 v2
+---- 作者: Vincent | 中文化 by ChatGPT ----
+ ${green} 1.${plain} 安装 MTProxy
+ ${green} 2.${plain} 卸载 MTProxy
+————————————
+ ${green} 3.${plain} 启动 MTProxy
+ ${green} 4.${plain} 停止 MTProxy
+ ${green} 5.${plain} 重启 MTProxy
+ ${green} 6.${plain} 修改监听端口
+ ${green} 7.${plain} 修改 Secret
+ ${green} 8.${plain} 更新 MTProxy
+————————————
+ ${green} 0.${plain} 退出
+————————————" && echo
 
-    echo -e "  ${GREEN}1.${PLAIN} 安装MTProto代理"
-    echo -e "  ${GREEN}2.${PLAIN} 更新MTProto代理"
-    echo -e "  ${GREEN}3.${PLAIN} 卸载MTProto代理"
-    echo " -------------"
-    echo -e "  ${GREEN}4.${PLAIN} 启动MTProto代理"
-    echo -e "  ${GREEN}5.${PLAIN} 重启MTProto代理"
-    echo -e "  ${GREEN}6.${PLAIN} 停止MTProto代理"
-    echo " -------------"
-    echo -e "  ${GREEN}7.${PLAIN} 查看MTProto信息"
-    echo -e "  ${GREEN}8.${PLAIN} 修改MTProto配置"
-    echo -e "  ${GREEN}9.${PLAIN} 查看MTProto日志"
-    echo " -------------"
-    echo -e "  ${GREEN}0.${PLAIN} 退出"
-    echo
-    echo -n " 当前状态："
-    statusText
-    echo
-
-    read -p " 请选择操作[0-9]：" answer
-    case $answer in
-        0)
-            exit 0
-            ;;
-        1)
-            install
-            ;;
-        2)
-            update
-            ;;
-        3)
-            uninstall
-            ;;
-        4)
-            start
-            ;;
-        5)
-            restart
-            ;;
-        6)
-            stop
-            ;;
-        7)
-            showInfo
-            ;;
-        8)
-            reconfig
-            ;;
-        9)
-            showLog
-            ;;
-        *)
-            echo -e " ${RED}请选择正确的操作！${PLAIN}"
-            exit 1
-            ;;
+	read -e -p "请输入数字 [0-8]: " num
+	case "$num" in
+    1)
+		download_file
+        configure_mtg
+        configure_systemctl
+		;;
+    2)
+        echo "正在卸载 MTProxy..."
+        systemctl stop mtg
+        systemctl disable mtg
+        rm -rf /usr/bin/mtg
+        rm -rf /etc/mtg.toml
+        rm -rf /etc/systemd/system/mtg.service
+        echo "卸载完成！"
+        ;;
+    3) 
+        echo "正在启动 MTProxy..."
+        systemctl start mtg
+        systemctl enable mtg
+        echo "启动完成！"
+        ;;
+    4) 
+        echo "正在停止 MTProxy..."
+        systemctl stop mtg
+        systemctl disable mtg
+        echo "已停止！"
+        ;;
+    5)  
+        echo "正在重启 MTProxy..."
+        systemctl restart mtg
+        echo "重启完成！"
+        ;;
+    6) 
+        change_port
+        ;;
+    7)
+        change_secret
+        ;;
+    8)
+        update_mtg
+        ;;
+    0) exit 0
+        ;;
+    *) echo -e "${red}请输入正确的数字 [0-8]${plain}"
+        ;;
     esac
 }
-
-checkSystem
-
-menu
+start_menu
