@@ -9,7 +9,7 @@ type Config struct {
 }
 
 func ParseConfig() *Config {
-	port := flag.Int("port", 443, "监听端口")
+	port := flag.Int("port", 4433, "监听端口")
 	flag.Parse()
 	return &Config{
 		Port: *port,
