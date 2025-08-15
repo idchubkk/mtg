@@ -2,14 +2,14 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-	"math/rand"
-	"encoding/json"
 )
 
 type Config struct {
@@ -18,70 +18,6 @@ type Config struct {
 	Path   string `json:"path"`
 }
 
-var Lang = map[string]map[string]string{
-	"zh": {
-		"langSelect": "选择语言:",
-		"menu":       "\n操作菜单:\n1: 安装 MTProxy\n2: 卸载 MTProxy\n3: 启动代理\n4: 停止代理\n5: 重启代理\n6: 修改端口\n7: 修改密钥\n8: 退出",
-		"install":    "安装 MTProxy",
-		"uninstall":  "卸载 MTProxy",
-		"start":      "启动代理",
-		"stop":       "停止代理",
-		"restart":    "重启代理",
-		"setport":    "修改端口",
-		"setkey":     "修改密钥",
-		"exit":       "退出",
-		"enterPort":  "请输入端口号:",
-		"enterKey":   "请输入密钥:",
-		"link":       "代理链接示例: tg://proxy?server=%s&port=%d&secret=%s",
-	},
-	"en": {
-		"langSelect": "Select language:",
-		"menu":       "\nMenu:\n1: Install MTProxy\n2: Uninstall MTProxy\n3: Start Proxy\n4: Stop Proxy\n5: Restart Proxy\n6: Set Port\n7: Set Secret\n8: Exit",
-		"install":    "Install MTProxy",
-		"uninstall":  "Uninstall MTProxy",
-		"start":      "Start Proxy",
-		"stop":       "Stop Proxy",
-		"restart":    "Restart Proxy",
-		"setport":    "Set Port",
-		"setkey":     "Set Secret",
-		"exit":       "Exit",
-		"enterPort":  "Enter port number:",
-		"enterKey":   "Enter secret:",
-		"link":       "Proxy link example: tg://proxy?server=%s&port=%d&secret=%s",
-	},
-	"jp": {
-		"langSelect": "言語を選択:",
-		"menu":       "\nメニュー:\n1: MTProxy をインストール\n2: MTProxy をアンインストール\n3: プロキシを開始\n4: プロキシを停止\n5: プロキシを再起動\n6: ポートを変更\n7: 秘密鍵を変更\n8: 終了",
-		"install":    "MTProxy をインストール",
-		"uninstall":  "MTProxy をアンインストール",
-		"start":      "プロキシを開始",
-		"stop":       "プロキシを停止",
-		"restart":    "プロキシを再起動",
-		"setport":    "ポートを変更",
-		"setkey":     "秘密鍵を変更",
-		"exit":       "終了",
-		"enterPort":  "ポート番号を入力:",
-		"enterKey":   "秘密鍵を入力:",
-		"link":       "プロキシリンク例: tg://proxy?server=%s&port=%d&secret=%s",
-	},
-	"pt": {
-		"langSelect": "Selecione a língua:",
-		"menu":       "\nMenu:\n1: Instalar MTProxy\n2: Desinstalar MTProxy\n3: Iniciar Proxy\n4: Parar Proxy\n5: Reiniciar Proxy\n6: Alterar Porta\n7: Alterar Chave\n8: Sair",
-		"install":    "Instalar MTProxy",
-		"uninstall":  "Desinstalar MTProxy",
-		"start":      "Iniciar Proxy",
-		"stop":       "Parar Proxy",
-		"restart":    "Reiniciar Proxy",
-		"setport":    "Alterar Porta",
-		"setkey":     "Alterar Chave",
-		"exit":       "Sair",
-		"enterPort":  "Digite o número da porta:",
-		"enterKey":   "Digite a chave:",
-		"link":       "Exemplo de link do proxy: tg://proxy?server=%s&port=%d&secret=%s",
-	},
-}
-
-var CurrentLang = "en"
 var cfgFile = "config.json"
 
 func LoadConfig() *Config {
@@ -117,30 +53,37 @@ func getPublicIP() string {
 	return string(out)
 }
 
-// 以下为各操作函数
 func InstallMTProxy() {
 	fmt.Println(Lang[CurrentLang]["install"])
+
 	if _, err := os.Stat("MTProxy"); os.IsNotExist(err) {
-		if _, err := os.Stat("mtproxy-src.tar.gz"); err == nil {
-			cmd := exec.Command("tar", "-xzf", "mtproxy-src.tar.gz")
+		if _, err := os.Stat("mtproxy-src.tar.gz"); os.IsNotExist(err) {
+			fmt.Println("Downloading MTProxy source code...")
+			cmd := exec.Command("wget", "-O", "mtproxy-src.tar.gz", "https://github.com/telegram-mtproxy/MTProxy/archive/refs/heads/master.tar.gz")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
-			cmd.Run()
-		} else if _, err := os.Stat("MTProxy.zip"); err == nil {
-			cmd := exec.Command("unzip", "MTProxy.zip")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			cmd.Run()
-		} else {
-			fmt.Println("未找到源码包 mtproxy-src.tar.gz 或 MTProxy.zip，请放入同目录")
-			return
+			err := cmd.Run()
+			if err != nil {
+				fmt.Println("下载失败，请检查网络:", err)
+				return
+			}
 		}
+
+		fmt.Println("Extracting MTProxy source...")
+		cmd := exec.Command("tar", "-xzf", "mtproxy-src.tar.gz")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+
+		os.Rename("MTProxy-master", "MTProxy")
 	}
+
+	fmt.Println("Compiling MTProxy...")
 	cmd := exec.Command("make", "-C", "MTProxy")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Run()
-	fmt.Println("安装完成")
+	fmt.Println("MTProxy 安装完成，可执行文件路径: MTProxy/objs/bin/mtproto-proxy")
 }
 
 func UninstallMTProxy() {
@@ -223,7 +166,6 @@ func main() {
 
 	cfg := LoadConfig()
 
-	// 主循环菜单
 	for {
 		fmt.Println(Lang[CurrentLang]["menu"])
 		fmt.Print("Choice: ")
@@ -249,4 +191,15 @@ func main() {
 			port, _ := strconv.Atoi(portStr)
 			SetPort(cfg, port)
 		case 7:
-			fmt.Print(Lang[CurrentLang]["enter
+			fmt.Print(Lang[CurrentLang]["enterKey"])
+			secret, _ := reader.ReadString('\n')
+			secret = strings.TrimSpace(secret)
+			SetSecret(cfg, secret)
+		case 8:
+			fmt.Println(Lang[CurrentLang]["exit"])
+			return
+		default:
+			fmt.Println("Invalid choice")
+		}
+	}
+}
