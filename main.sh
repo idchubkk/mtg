@@ -1,9 +1,8 @@
 #!/bin/bash
 ###
- # @作者: idchubkk
- # @日期: 2022-07-01
+ # @日期: 2025-08-15
  # @说明: 一键安装 / 管理 MTProto 代理
- # @Telegram: https://t.me/idchubkk
+ # @Telegram: https://t.me/runmtg
 ###
 
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
