@@ -33,7 +33,7 @@ func InstallMTProxy() {
 	if _, err := os.Stat("MTProxy"); os.IsNotExist(err) {
 		if _, err := os.Stat("mtproxy-src.tar.gz"); os.IsNotExist(err) {
 			fmt.Println("Downloading MTProxy source code...")
-			cmd := exec.Command("wget", "-O", "mtproxy-src.tar.gz", "https://github.com/telegram-mtproxy/MTProxy/archive/refs/heads/master.tar.gz")
+			cmd := exec.Command("wget", "-O", "mtproxy-src.tar.gz", "https://github.com/TelegramMessenger/MTProxy/archive/refs/heads/master.zip")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			err := cmd.Run()
