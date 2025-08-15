@@ -11,17 +11,47 @@ import (
 
 func InstallMTProxy() {
 	fmt.Println(Lang[CurrentLang]["install"])
+
+	// 检查源码目录是否存在
 	if _, err := os.Stat("MTProxy"); os.IsNotExist(err) {
-		cmd := exec.Command("git", "clone", "https://github.com/telegram-mtproxy/MTProxy.git")
+		// 使用 wget 下载官方源码 tar.gz
+		if _, err := os.Stat("mtproxy-src.tar.gz"); os.IsNotExist(err) {
+			fmt.Println("Downloading MTProxy source code...")
+			cmd := exec.Command("wget", "-O", "mtproxy-src.tar.gz", "https://github.com/telegram-mtproxy/MTProxy/archive/refs/heads/master.tar.gz")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err := cmd.Run()
+			if err != nil {
+				fmt.Println("下载失败，请检查网络:", err)
+				return
+			}
+		}
+
+		// 解压源码
+		fmt.Println("Extracting MTProxy source...")
+		cmd := exec.Command("tar", "-xzf", "mtproxy-src.tar.gz")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Run()
+
+		// 重命名解压后的目录为 MTProxy
+		os.Rename("MTProxy-master", "MTProxy")
 	}
+
+	// 编译
+	fmt.Println("Compiling MTProxy...")
 	cmd := exec.Command("make", "-C", "MTProxy")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("编译失败:", err)
+		return
+	}
+
+	fmt.Println("MTProxy 安装完成，可执行文件路径: MTProxy/objs/bin/mtproto-proxy")
 }
+
 
 func generateSecret() string {
 	b := make([]byte, 16)
