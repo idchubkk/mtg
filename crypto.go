@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/aes"
+	"crypto/cipher" // 必须导入 cipher
 	"crypto/rand"
 	"encoding/hex"
 	"log"
