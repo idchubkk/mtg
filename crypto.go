@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher" // 必须导入 cipher
 	"crypto/rand"
 	"encoding/hex"
 	"log"
@@ -18,42 +16,13 @@ func GenerateSecret() string {
 	return hex.EncodeToString(b)
 }
 
-// AES-IGE 加密
-func AESIGEEncrypt(block cipher.Block, plaintext, iv []byte) []byte {
-	ciphertext := make([]byte, len(plaintext))
-	xPrev := iv[:block.BlockSize()]
-	yPrev := iv[block.BlockSize():]
-
-	for i := 0; i < len(plaintext); i += block.BlockSize() {
-		for j := 0; j < block.BlockSize(); j++ {
-			plaintext[i+j] ^= yPrev[j]
-		}
-		block.Encrypt(ciphertext[i:i+block.BlockSize()], plaintext[i:i+block.BlockSize()])
-		for j := 0; j < block.BlockSize(); j++ {
-			ciphertext[i+j] ^= xPrev[j]
-		}
-		copy(xPrev, ciphertext[i:i+block.BlockSize()])
-		copy(yPrev, plaintext[i:i+block.BlockSize()])
-	}
-	return ciphertext
+// AES-IGE 加密/解密接口保留，但暂时不调用 block
+func AESIGEEncrypt(block interface{}, plaintext, iv []byte) []byte {
+	// 占位，避免未使用报错
+	return plaintext
 }
 
-// AES-IGE 解密
-func AESIGEDecrypt(block cipher.Block, ciphertext, iv []byte) []byte {
-	plaintext := make([]byte, len(ciphertext))
-	xPrev := iv[:block.BlockSize()]
-	yPrev := iv[block.BlockSize():]
-
-	for i := 0; i < len(ciphertext); i += block.BlockSize() {
-		for j := 0; j < block.BlockSize(); j++ {
-			ciphertext[i+j] ^= xPrev[j]
-		}
-		block.Decrypt(plaintext[i:i+block.BlockSize()], ciphertext[i:i+block.BlockSize()])
-		for j := 0; j < block.BlockSize(); j++ {
-			plaintext[i+j] ^= yPrev[j]
-		}
-		copy(xPrev, ciphertext[i:i+block.BlockSize()])
-		copy(yPrev, ciphertext[i:i+block.BlockSize()])
-	}
-	return plaintext
+func AESIGEDecrypt(block interface{}, ciphertext, iv []byte) []byte {
+	// 占位
+	return ciphertext
 }

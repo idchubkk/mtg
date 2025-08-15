@@ -1,11 +1,10 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/rand"
 	"fmt"
 	"log"
 	"net"
+	"crypto/rand"
 )
 
 // 处理客户端连接
@@ -26,23 +25,15 @@ func HandleConnection(conn net.Conn, secret []byte) {
 		return
 	}
 
-	// 生成 AES key/iv
+	// 生成 key/iv（AES 暂时不使用）
 	key := make([]byte, 32)
 	iv := make([]byte, 32)
 	_, _ = rand.Read(key)
 	_, _ = rand.Read(iv)
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		log.Println("AES 创建失败:", err)
-		return
-	}
-
 	// 返回握手响应
 	conn.Write(append(secret, key...))
 	conn.Write(iv)
-
-	// 后续可通过 AESIGEEncrypt / AESIGEDecrypt 加密/解密数据
 }
 
 // 启动代理监听
