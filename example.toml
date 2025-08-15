@@ -1,5 +1,0 @@
-# 这是一个简单配置文件，格式 key=value
-secret = your_secret_here
-bind_to = 0.0.0.0:443
-blocklist = 1.1.1.1,2.2.2.2
-chain_proxy = socks5://127.0.0.1:1080

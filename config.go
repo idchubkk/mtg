@@ -1,17 +1,31 @@
 package main
 
 import (
-	"flag"
+	"encoding/json"
+	"os"
 )
 
 type Config struct {
-	Port int
+	Port   int    `json:"port"`
+	Secret string `json:"secret"`
+	Path   string `json:"path"` // MTProxy 可执行文件路径
 }
 
-func ParseConfig() *Config {
-	port := flag.Int("port", 4433, "监听端口")
-	flag.Parse()
-	return &Config{
-		Port: *port,
+func LoadConfig(file string) (*Config, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return &Config{
+			Port:   443,
+			Secret: "",
+			Path:   "./mtproto-proxy",
+		}, nil
 	}
+	var cfg Config
+	err = json.Unmarshal(data, &cfg)
+	return &cfg, err
+}
+
+func SaveConfig(file string, cfg *Config) error {
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	return os.WriteFile(file, data, 0644)
 }
